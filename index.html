@@ -90,10 +90,11 @@
         /* DESKTOP STYLES (lg: breakpoint and up) */
         /* ************************************** */
         @media (min-width: 1024px) {
-            /* 關鍵修正：讓主區域佔據大部分視窗高度 */
+            /* 修正：讓主容器填滿高度並保持垂直對齊 */
             #main-content {
-                height: calc(100vh - 100px); /* 100vh 減去 header/footer 的高度 */
+                height: calc(100vh - 100px); 
                 min-height: 600px;
+                align-items: stretch; /* 確保子項目的高度拉伸至父項目高度 */
             }
             /* 關鍵修正：讓左右兩大塊高度一致並佔滿 main 區域的垂直空間 */
             #translator-card, #history-sidebar {
@@ -110,12 +111,13 @@
                 display: flex;
                 flex-direction: column;
                 height: 100%;
+                justify-content: space-between; /* 確保按鈕在底部 */
             }
             .textarea-container {
                 flex-grow: 1;
                 display: flex;
                 flex-direction: column;
-                min-height: 0; /* 確保 flex 項目能夠正確收縮 */
+                min-height: 0;
             }
             /* 設置 textarea 的最小高度以避免在空內容時消失 */
             #source-text, #target-text {
@@ -128,9 +130,9 @@
         /* ************************************** */
         @media (max-width: 1023px) {
             #main-content {
-                height: auto; /* 手機上允許內容自然高度 */
+                height: auto;
                 min-height: 0;
-                flex-direction: column; /* 強制垂直堆疊 */
+                flex-direction: column;
             }
             #translator-card, #history-sidebar {
                 height: auto;
@@ -138,14 +140,14 @@
                 width: 100%;
             }
             .grid-container {
-                grid-template-columns: 1fr; /* 輸入和輸出區塊變成垂直堆疊 */
+                grid-template-columns: 1fr;
                 gap: 1rem;
             }
             .input-group, .output-group {
                 height: auto;
             }
             .textarea-container {
-                min-height: 150px; /* 手機上給予較小的最小高度 */
+                min-height: 150px;
             }
         }
     </style>
@@ -157,8 +159,9 @@
         <div class="flex gap-3">
             <input type="file" id="bg-upload" accept="image/*" class="hidden">
             <button id="change-bg-btn" class="flex items-center px-4 py-2 bg-white/80 hover:bg-white text-gray-700 font-medium rounded-full shadow-sm transition duration-200 backdrop-blur-sm border border-gray-200 text-sm">
-                🖼️ 更換背景
+                更換背景
             </button>
+            <!-- 這裡沒有設定按鈕 -->
         </div>
     </header>
 
@@ -235,7 +238,7 @@
                         </button>
                     </div>
 
-                    <div class="textarea-container flex-grow">
+                    <div class="textarea-container">
                         <textarea id="source-text" 
                             class="w-full h-full p-4 bg-white/60 border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 ease-in-out resize-none text-gray-800 placeholder-gray-500 backdrop-blur-sm overflow-y-auto custom-scrollbar leading-relaxed" 
                             placeholder="請在此輸入文字，或直接貼上截圖 (Ctrl+V) 自動翻譯..."></textarea>
@@ -265,7 +268,7 @@
                 
                 <!-- 右欄：結果區 -->
                 <div class="output-group">
-                    <div class="textarea-container flex-grow">
+                    <div class="textarea-container">
                         <textarea id="target-text" 
                             class="w-full h-full p-4 bg-blue-50/60 border border-blue-100 rounded-xl text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 ease-in-out resize-none backdrop-blur-sm overflow-y-auto custom-scrollbar leading-relaxed" 
                             readonly
