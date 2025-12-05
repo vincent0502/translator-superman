@@ -86,47 +86,79 @@
             scrollbar-color: rgba(0, 0, 0, 0.2) rgba(0, 0, 0, 0.05);
         }
 
-        /* 關鍵修正：讓主區域佔據大部分視窗高度 */
-        #main-content {
-            height: calc(100vh - 100px); /* 100vh 減去 header/footer 的高度 */
-            min-height: 600px;
+        /* ************************************** */
+        /* DESKTOP STYLES (lg: breakpoint and up) */
+        /* ************************************** */
+        @media (min-width: 1024px) {
+            /* 關鍵修正：讓主區域佔據大部分視窗高度 */
+            #main-content {
+                height: calc(100vh - 100px); /* 100vh 減去 header/footer 的高度 */
+                min-height: 600px;
+            }
+            /* 關鍵修正：讓左右兩大塊高度一致並佔滿 main 區域的垂直空間 */
+            #translator-card, #history-sidebar {
+                height: 100%;
+            }
+            /* 修正語言選單和按鈕區域的高度，讓 textarea 佔據剩餘空間 */
+            .grid-container {
+                flex-grow: 1;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.5rem; /* 6 (gap-6) */
+            }
+            .input-group, .output-group {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+            .textarea-container {
+                flex-grow: 1;
+                display: flex;
+                flex-direction: column;
+                min-height: 0; /* 確保 flex 項目能夠正確收縮 */
+            }
+            /* 設置 textarea 的最小高度以避免在空內容時消失 */
+            #source-text, #target-text {
+                min-height: 200px; 
+            }
         }
-
-        /* 關鍵修正：讓左右兩大塊高度一致並佔滿 main 區域的垂直空間 */
-        #translator-card, #history-sidebar {
-            height: 100%;
-        }
-
-        /* 修正語言選單和按鈕區域的高度，讓 textarea 佔據剩餘空間 */
-        .grid-container {
-            flex-grow: 1;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem; /* 6 (gap-6) */
-        }
-        .input-group, .output-group {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        .textarea-container {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0; /* 確保 flex 項目能夠正確收縮 */
+        
+        /* ************************************** */
+        /* MOBILE STYLES (small screens)          */
+        /* ************************************** */
+        @media (max-width: 1023px) {
+            #main-content {
+                height: auto; /* 手機上允許內容自然高度 */
+                min-height: 0;
+                flex-direction: column; /* 強制垂直堆疊 */
+            }
+            #translator-card, #history-sidebar {
+                height: auto;
+                min-height: 0;
+                width: 100%;
+            }
+            .grid-container {
+                grid-template-columns: 1fr; /* 輸入和輸出區塊變成垂直堆疊 */
+                gap: 1rem;
+            }
+            .input-group, .output-group {
+                height: auto;
+            }
+            .textarea-container {
+                min-height: 150px; /* 手機上給予較小的最小高度 */
+            }
         }
     </style>
 </head>
 <body class="flex flex-col items-center p-4">
 
     <!-- 頂部功能列 (刪除跨平台翻譯文字，保留按鈕) -->
-    <header class="w-full max-w-6xl flex justify-end items-center mb-4 mt-2 px-2">
+    <header class="w-full max-w-6xl flex justify-end items-center mb-4 mt-2 px-2 flex-shrink-0">
         <div class="flex gap-3">
             <input type="file" id="bg-upload" accept="image/*" class="hidden">
             <button id="change-bg-btn" class="flex items-center px-4 py-2 bg-white/80 hover:bg-white text-gray-700 font-medium rounded-full shadow-sm transition duration-200 backdrop-blur-sm border border-gray-200 text-sm">
-                更換背景
+                🖼️ 更換背景
             </button>
-            <!-- 移除設定按鈕 -->
         </div>
     </header>
 
@@ -251,7 +283,7 @@
                         </button>
                         
                         <button id="speak-btn" class="flex-1 flex items-center justify-center px-4 py-3 bg-indigo-500/90 hover:bg-indigo-600 text-white font-bold rounded-xl shadow-md transition duration-200 ease-in-out transform active:scale-[0.98]">
-                            <!-- 修正後的朗讀圖示 (純喇叭線條) -->
+                            <!-- 修正後的朗讀圖示 (簡潔喇叭線條) -->
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728m-9.18-12.728A13.5 13.5 0 002.25 12H4.5c0-.83.112-1.633.322-2.396C4.986 8.756 5.81 8.25 6.75 8.25h.488l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H6.75A2.25 2.25 0 014.5 15V9a2.25 2.25 0 012.25-2.25h3.636z" />
                             </svg>
