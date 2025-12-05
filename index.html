@@ -72,7 +72,15 @@
 
     <!-- 頂部功能列 -->
     <header class="w-full max-w-6xl flex justify-end items-center mb-2 mt-2 px-2 flex-shrink-0">
-        <div class="flex gap-4">
+        <div class="flex gap-3">
+            <!-- 設定金鑰按鈕 (若已設定會自動隱藏) -->
+            <button id="settings-btn" class="flex items-center px-4 py-2 bg-white/80 hover:bg-white text-gray-700 font-medium rounded-full shadow-sm transition duration-200 backdrop-blur-sm border border-gray-200 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                </svg>
+                設定金鑰
+            </button>
+
             <input type="file" id="bg-upload" accept="image/*" class="hidden">
             <button id="change-bg-btn" class="flex items-center px-4 py-2 bg-white/80 hover:bg-white text-gray-700 font-medium rounded-full shadow-sm transition duration-200 backdrop-blur-sm border border-gray-200 text-sm">
                 更換背景
@@ -232,6 +240,22 @@
         </p>
     </footer>
 
+    <!-- 設定金鑰彈出視窗 -->
+    <div id="settings-modal" class="fixed inset-0 bg-gray-900/90 backdrop-blur-sm hidden items-center justify-center p-4 z-50 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-gray-200">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">設定 Gemini API 金鑰</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                請輸入您的 Google Gemini API Key。您的金鑰將僅儲存在此瀏覽器中，不會傳送給開發者。
+                <br><a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-500 hover:underline">取得 API Key</a>
+            </p>
+            <input type="password" id="api-key-input" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mb-4" placeholder="貼上您的 API Key">
+            <div class="flex justify-end gap-3">
+                <button id="close-settings-btn" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">取消</button>
+                <button id="save-api-key-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold">儲存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 相機掃描彈出視窗 -->
     <div id="camera-modal" class="fixed inset-0 bg-gray-900/90 backdrop-blur-sm hidden items-center justify-center p-4 z-50 transition-opacity duration-300">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-gray-200">
@@ -257,8 +281,11 @@
 
     <script type="module">
         // -------------------------
-        // 1. Firebase 和 API 初始化
+        // 1. 系統變數與金鑰管理
         // -------------------------
+        
+        // 【使用者專區】如果您想將金鑰直接寫在檔案裡，請填入下方引號中：
+        const hardcodedApiKey = "AIzaSyCnGEmjLPIGXlY9GWKPRtAA524fG8b6T3w"; 
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -268,28 +295,74 @@
         let isAuthReady = false;
         let cameraStream = null;
         
-        // 優先從 URL 參數讀取 API Key (這是現在唯一的外部設定方法)
+        // 優先順序：網址參數 > 程式碼寫死 > 本地儲存
         const urlParams = new URLSearchParams(window.location.search);
         const urlApiKey = urlParams.get('apikey');
-
         let localApiKey = localStorage.getItem('gemini_api_key') || "";
-        // 如果 URL 帶有 apikey 參數，優先使用並儲存
-        if (urlApiKey && urlApiKey.length > 10) {
-            localApiKey = urlApiKey;
-            localStorage.setItem('gemini_api_key', urlApiKey);
-            // 清除 URL 參數避免長輩看到 (但不重載，讓初始化繼續)
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-
-        let localFirebaseConfigStr = localStorage.getItem('firebase_config_str') || "";
         
+        // 環境變數 (Canvas 專用，一般網頁可忽略)
         const envAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const envFirebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const envInitialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
+        const envCanvasApiKey = ""; // Canvas 環境提供的金鑰 (通常為空)
+
+        // 決定最終使用的 API Key
+        let geminiApiKey = hardcodedApiKey || urlApiKey || localApiKey || envCanvasApiKey;
+
+        // UI 邏輯：如果有金鑰，隱藏設定按鈕；如果是網址帶來的，存起來並清網址
+        const settingsBtn = document.getElementById('settings-btn');
+        if (geminiApiKey && geminiApiKey.length > 10) {
+            settingsBtn.style.display = 'none'; // 隱藏按鈕
+            
+            // 如果是從網址來的，存入 localStorage 以便下次使用
+            if (urlApiKey) {
+                localStorage.setItem('gemini_api_key', urlApiKey);
+                // 清除網址列上的金鑰，保護隱私
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        } else {
+            // 如果沒有金鑰，顯示設定按鈕
+            settingsBtn.style.display = 'flex';
+        }
+
+        // --- 金鑰設定視窗邏輯 ---
+        const settingsModal = document.getElementById('settings-modal');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+        const closeSettingsBtn = document.getElementById('close-settings-btn');
+
+        settingsBtn.addEventListener('click', () => {
+            settingsModal.classList.remove('hidden');
+            settingsModal.classList.add('flex');
+            apiKeyInput.value = localApiKey;
+        });
+
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+            settingsModal.classList.remove('flex');
+        });
+
+        saveApiKeyBtn.addEventListener('click', () => {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                localStorage.setItem('gemini_api_key', key);
+                geminiApiKey = key;
+                settingsModal.classList.add('hidden');
+                settingsModal.classList.remove('flex');
+                settingsBtn.style.display = 'none'; // 設定成功後隱藏按鈕
+                alert('金鑰已儲存！');
+                location.reload(); // 重新整理以套用
+            } else {
+                alert('請輸入有效的 API Key');
+            }
+        });
+
+
+        // -------------------------
+        // 2. Firebase 初始化
+        // -------------------------
+        let localFirebaseConfigStr = localStorage.getItem('firebase_config_str') || "";
         let firebaseConfig = {};
-        let apiKey = localApiKey; 
         
         if (localFirebaseConfigStr) {
             try { firebaseConfig = JSON.parse(localFirebaseConfigStr); } catch (e) { console.error("Config Error", e); }
@@ -324,7 +397,7 @@
                 }
             } else {
                 console.warn("No Firebase Config");
-                document.getElementById('history-placeholder').textContent = "未設定資料庫";
+                document.getElementById('history-placeholder').textContent = "未設定資料庫 (歷史紀錄功能停用)";
             }
         };
 
@@ -332,11 +405,10 @@
 
 
         // -------------------------
-        // 2. 背景更換邏輯 (設定相關代碼已移除)
+        // 3. 背景更換邏輯
         // -------------------------
         const bgUploadInput = document.getElementById('bg-upload');
         const changeBgBtn = document.getElementById('change-bg-btn');
-        // settingsBtn, settingsModal, closeSettingsBtn, saveSettingsBtn 等已移除
 
         function loadSavedBackground() {
             const savedBg = localStorage.getItem('translatorAppBg');
@@ -362,7 +434,7 @@
 
 
         // -------------------------
-        // 3. 翻譯與介面邏輯
+        // 4. 翻譯與介面邏輯
         // -------------------------
 
         const sourceTextEl = document.getElementById('source-text');
@@ -423,8 +495,8 @@
         }
 
         async function translateText(base64Image = null) {
-            if (!apiKey) {
-                targetTextEl.value = '⚠️ 未設定 API Key。請將您的金鑰附加在網址後方 (例如: ?apikey=YOUR_KEY)，然後重新整理。';
+            if (!geminiApiKey) {
+                targetTextEl.value = '⚠️ 未偵測到 API Key。請點擊右上角「設定金鑰」或使用網址帶入 Key。';
                 return;
             }
 
@@ -438,7 +510,7 @@
             targetTextEl.value = '✨ AI 正在思考並翻譯中...';
 
             const model = 'gemini-2.5-flash-preview-09-2025';
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
             
             let systemPrompt = "You are a highly accurate and professional language translator. Your task is to provide a precise translation into the target language. Crucially, ensure that the translated text adheres to the strict grammatical rules, appropriate tense, and idiomatic correctness of the target language. Do not include any extra commentary, explanations, or formatting. Only return the translated text.";
             
@@ -488,7 +560,7 @@
                     });
                     if (!response.ok) {
                         const errorBody = await response.json();
-                        throw new Error(`API 請求失敗: ${response.status}`);
+                        throw new Error(`API 請求失敗: ${response.status} - ${JSON.stringify(errorBody)}`);
                     }
                     return response.json();
                 };
@@ -507,13 +579,13 @@
                 console.error("錯誤:", error);
                 statusMessageEl.textContent = `錯誤: ${error.message}`;
                 statusMessageEl.classList.remove('hidden');
-                targetTextEl.value = '連線失敗。請檢查您的 API Key 或網路連線。';
+                targetTextEl.value = '連線失敗。請確認您的 API Key 是否正確。';
             }
         }
 
-        // --- Copy & Speak Logic (New) ---
+        // --- Copy & Speak Logic ---
         copyBtn.addEventListener('click', async () => {
-            const textToCopy = targetTextEl.value; // Changed to value for textarea
+            const textToCopy = targetTextEl.value; 
             if (!textToCopy || textToCopy.includes('輸入文字') || textToCopy.includes('AI 正在思考')) return;
             try {
                 if (navigator.clipboard && window.isSecureContext) {
@@ -531,7 +603,7 @@
         });
 
         speakBtn.addEventListener('click', () => {
-            const textToSpeak = targetTextEl.value; // Changed to value for textarea
+            const textToSpeak = targetTextEl.value; 
             if (!textToSpeak || textToSpeak.includes('輸入文字') || textToSpeak.includes('AI 正在思考')) return;
             
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -636,7 +708,7 @@
             currentBase64Image = null;
             imagePreview.src = '';
             imagePreviewContainer.classList.add('hidden');
-            sourceTextEl.placeholder = "請在此輸入文字，或直接貼上截圖 (Ctrl+V) 自動翻譯...";
+            sourceTextEl.placeholder = "請在此輸入文字，或貼上截圖...";
         }
         
         clearImageBtn.addEventListener('click', () => {
