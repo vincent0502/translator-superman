@@ -258,7 +258,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, query, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ============================================================================
-        //⚠️ 您的 Google Apps Script 網址 (已自動更新) ⚠️
+        // ⚠️ 您的 Google Apps Script 網址 (已自動更新) ⚠️
         // ============================================================================
         const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxL_c4rnrZWN2pUrUOAGw5AYITAbeIhy02fKKFt3Owi3ZWDAD9I8x9qHZ-eqCepFc4dUQ/exec"; 
         // ============================================================================
@@ -311,8 +311,8 @@
                 const data = await response.json();
                 
                 if (data.status === "error") throw new Error(data.error);
-                
-                // --- 結果過濾邏輯 ---
+
+                // --- 結果過濾邏輯 (強化版) ---
                 let cleanTranslatedText = data.translatedText;
                 
                 // 1. 移除可能的 "Source: ..." 開頭
@@ -382,7 +382,7 @@
                 const item = document.createElement('div');
                 item.className = "bg-white/70 p-3 rounded-xl border border-gray-100 hover:bg-white cursor-pointer mb-2 shadow-sm flex-shrink-0";
                 
-                // --- 移除語言代碼顯示，只保留原文與翻譯結果 ---
+                // --- 歷史紀錄：只顯示原文與翻譯結果 ---
                 item.innerHTML = `
                     <div class="text-sm text-gray-800 font-medium mb-1 break-words line-clamp-2">${d.sourceText}</div>
                     <div class="text-xs text-gray-600 break-words line-clamp-2">${d.targetText}</div>
