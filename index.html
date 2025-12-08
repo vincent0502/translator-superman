@@ -258,7 +258,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, query, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ============================================================================
-        // ⚠️ 您的 Google Apps Script 網址 (已自動更新) ⚠️
+        //⚠️ 您的 Google Apps Script 網址 (已自動更新) ⚠️
         // ============================================================================
         const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxL_c4rnrZWN2pUrUOAGw5AYITAbeIhy02fKKFt3Owi3ZWDAD9I8x9qHZ-eqCepFc4dUQ/exec"; 
         // ============================================================================
@@ -311,9 +311,26 @@
                 const data = await response.json();
                 
                 if (data.status === "error") throw new Error(data.error);
+                
+                // --- 結果過濾邏輯 ---
+                let cleanTranslatedText = data.translatedText;
+                
+                // 1. 移除可能的 "Source: ..." 開頭
+                cleanTranslatedText = cleanTranslatedText.replace(/^Source:\s*.*?\n+/im, ''); 
+                cleanTranslatedText = cleanTranslatedText.replace(/^Source language:\s*.*?\n+/im, '');
+                cleanTranslatedText = cleanTranslatedText.replace(/^Detected source language:\s*.*?\n+/im, '');
+                
+                // 2. 移除可能的引號 (如果 API 回傳帶了引號)
+                if (cleanTranslatedText.startsWith('"') && cleanTranslatedText.endsWith('"')) {
+                    cleanTranslatedText = cleanTranslatedText.slice(1, -1);
+                }
 
-                targetText.value = data.translatedText;
-                saveHistory(text || (currentImage ? "[圖片]" : "[PDF]"), data.translatedText);
+                cleanTranslatedText = cleanTranslatedText.trim();
+                
+                targetText.value = cleanTranslatedText;
+                
+                // 存入歷史紀錄 (使用過濾後的文字)
+                saveHistory(text || (currentImage ? "[圖片]" : "[PDF]"), cleanTranslatedText);
 
             } catch (e) {
                 console.error(e);
@@ -364,7 +381,13 @@
             history.forEach(d => {
                 const item = document.createElement('div');
                 item.className = "bg-white/70 p-3 rounded-xl border border-gray-100 hover:bg-white cursor-pointer mb-2 shadow-sm flex-shrink-0";
-                item.innerHTML = `<div class="text-xs text-blue-600 font-bold mb-1">${d.sourceLang} → ${d.targetLang}</div><div class="text-sm text-gray-800 truncate">${d.sourceText}</div><div class="text-xs text-gray-500 truncate">${d.targetText}</div>`;
+                
+                // --- 移除語言代碼顯示，只保留原文與翻譯結果 ---
+                item.innerHTML = `
+                    <div class="text-sm text-gray-800 font-medium mb-1 break-words line-clamp-2">${d.sourceText}</div>
+                    <div class="text-xs text-gray-600 break-words line-clamp-2">${d.targetText}</div>
+                `;
+                
                 item.onclick = () => { sourceText.value = d.sourceText; targetText.value = d.targetText; };
                 list.appendChild(item);
             });
