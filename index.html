@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨平台翻譯 App</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 PDF.js 用於解析 PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <!-- 設定 Tailwind CSS 配置，使用 Inter 字體 -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb; /* 預設淺灰背景 */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            transition: background-image 0.5s ease-in-out;
+            min-height: 100vh;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* 玻璃擬態效果 */
+        .glass-panel {
+            background-color: rgba(255, 255, 255, 0.85); /* 稍微增加不透明度 */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+
+        /* 自定義捲動條 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: 3px; }
+        
+        /* 桌面版樣式微調 */
+        @media (min-width: 1024px) {
+            #main-content {
+                align-items: stretch; /* 強制左右等高 */
+            }
+            .grid-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2rem;
+            }
+            #source-text, #target-text {
+                min-height: 120px; /* 設定一個較小的最小高度 */
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center p-4">
+
+    <!-- 頂部功能列 -->
+    <header class="w-full max-w-6xl flex justify-end items-center mb-2 mt-2 px-2 flex-shrink-0">
+        <div class="flex gap-3">
+            <input type="file" id="bg-upload" accept="image/*" class="hidden">
+            <button id="change-bg-btn" class="flex items-center px-4 py-2 bg-white/80 hover:bg-white text-gray-700 font-medium rounded-full shadow-sm transition duration-200 backdrop-blur-sm border border-gray-200 text-sm">
+                更換背景
+            </button>
+        </div>
+    </header>
+
+    <!-- 主介面 -->
+    <main id="main-content" class="w-full max-w-6xl flex flex-col lg:flex-row gap-6 mt-2 lg:items-stretch">
+
+        <!-- 左側：翻譯區 -->
+        <div id="translator-card" class="lg:w-2/3 glass-panel rounded-3xl shadow-xl p-6 transition-all duration-300 flex flex-col h-full">
+            
+            <!-- 語言選擇 -->
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-3 sm:space-y-0 sm:space-x-4 flex-shrink-0">
+                <div class="flex-1 w-full sm:w-auto relative group">
+                    <select id="source-lang" class="w-full p-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium transition duration-150 ease-in-out appearance-none backdrop-blur-sm cursor-pointer text-base">
+                        <option value="auto" selected>✨ 自動偵測語言</option>
+                        <option value="zh-Hant">中文 (繁體)</option>
+                        <option value="en">英文</option>
+                        <option value="ja">日文</option>
+                        <option value="ko">韓文</option>
+                        <option value="es">西班牙文</option>
+                        <option value="fr">法文</option>
+                        <option value="de">德文</option>
+                        <option value="it">義大利文</option>
+                        <option value="vi">越南文</option>
+                        <option value="th">泰文</option>
+                        <option value="id">印尼文</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                        <svg class="fill-current h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                    </div>
+                </div>
+
+                <button id="swap-btn" class="p-3 bg-white/80 rounded-full hover:bg-blue-50 text-blue-600 transition duration-150 ease-in-out shadow-sm border border-gray-100 sm:mt-6 group backdrop-blur-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5 group-hover:rotate-180 transition-transform duration-300">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m2.25-4.5L21 7.5m0 0L16.5 3M21 7.5H7.5" />
+                    </svg>
+                </button>
+                
+                <div class="flex-1 w-full sm:w-auto relative group">
+                    <select id="target-lang" class="w-full p-3 bg-white/60 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-medium transition duration-150 ease-in-out appearance-none backdrop-blur-sm text-base">
+                        <option value="en" selected>英文</option>
+                        <option value="zh-Hant">中文 (繁體)</option>
+                        <option value="ja">日文</option>
+                        <option value="ko">韓文</option>
+                        <option value="es">西班牙文</option>
+                        <option value="fr">法文</option>
+                        <option value="de">德文</option>
+                        <option value="it">義大利文</option>
+                        <option value="vi">越南文</option>
+                        <option value="th">泰文</option>
+                        <option value="id">印尼文</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                        <svg class="fill-current h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 輸入與輸出區 -->
+            <div class="grid-container flex-grow">
+                
+                <!-- 左欄：輸入區 -->
+                <div class="input-group flex flex-col gap-3 h-full">
+                    <!-- 圖片預覽區 -->
+                    <div id="image-preview-container" class="hidden relative bg-gray-100/80 rounded-xl overflow-hidden border border-dashed border-gray-400 backdrop-blur-sm flex-shrink-0 h-32">
+                        <img id="image-preview" src="" alt="預覽" class="w-full h-full object-contain bg-transparent">
+                        <button id="clear-image-btn" class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="textarea-container flex-grow flex flex-col">
+                        <textarea id="source-text" rows="3"
+                            class="w-full flex-grow p-4 bg-white/60 border border-gray-200 rounded-2xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 ease-in-out resize-none text-gray-800 placeholder-gray-500 backdrop-blur-sm overflow-y-auto custom-scrollbar leading-relaxed text-lg" 
+                            placeholder="請在此輸入文字，或貼上截圖..."></textarea>
+                    </div>
+                    
+                    <!-- 按鈕群組 -->
+                    <div class="flex gap-3 flex-shrink-0">
+                        <button id="scan-btn" class="flex-1 flex items-center justify-center px-4 py-3 bg-emerald-500/90 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-md transition duration-200 ease-in-out transform active:scale-[0.98] text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                            </svg>
+                            相機
+                        </button>
+                        
+                        <input type="file" id="pdf-upload" accept="application/pdf" class="hidden">
+                        <button id="pdf-btn" class="flex-1 flex items-center justify-center px-4 py-3 bg-red-500/90 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition duration-200 ease-in-out transform active:scale-[0.98] text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25M15 12h3M7.5 16.5h4.5M7.5 12h7.5M8.25 3.75H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                            上傳 PDF
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 右欄：結果區 -->
+                <div class="output-group flex flex-col gap-3 mt-6 lg:mt-0 h-full">
+                    <div class="textarea-container flex-grow flex flex-col">
+                        <textarea id="target-text" rows="3"
+                            class="w-full flex-grow p-4 bg-blue-50/60 border border-blue-100 rounded-2xl text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150 ease-in-out resize-none backdrop-blur-sm overflow-y-auto custom-scrollbar leading-relaxed text-lg" 
+                            readonly
+                            placeholder="翻譯結果將顯示於此..."></textarea>
+                    </div>
+
+                    <!-- 按鈕群組 -->
+                    <div class="flex gap-3 flex-shrink-0">
+                        <button id="copy-btn" class="flex-1 flex items-center justify-center px-4 py-3 bg-blue-500/90 hover:bg-blue-600 text-white font-bold rounded-xl shadow-md transition duration-200 ease-in-out transform active:scale-[0.98] text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                            </svg>
+                            複製
+                        </button>
+                        
+                        <button id="speak-btn" class="flex-1 flex items-center justify-center px-4 py-3 bg-indigo-500/90 hover:bg-indigo-600 text-white font-bold rounded-xl shadow-md transition duration-200 ease-in-out transform active:scale-[0.98] text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                            </svg>
+                            朗讀
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 錯誤訊息和 API 狀態 -->
+            <div id="status-message" class="mt-4 text-center text-red-500 font-medium hidden bg-red-50/80 p-2 rounded-lg flex-shrink-0"></div>
+        </div>
+
+        <!-- 右側：歷史紀錄側邊欄 -->
+        <div id="history-sidebar" class="lg:w-1/3 glass-panel rounded-3xl shadow-xl p-6 transition-all duration-300 flex flex-col h-full lg:max-h-none">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b border-gray-200/50 pb-3 flex items-center flex-shrink-0"> 
+                翻譯歷史紀錄
+            </h2>
+            <div id="history-list" class="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-grow"> 
+                <!-- History items will be inserted here -->
+                <div id="history-placeholder" class="text-gray-500 text-sm py-4 text-center">
+                    <div class="animate-pulse flex space-x-4 justify-center mb-2">
+                        <div class="h-2 bg-gray-300 rounded w-1/3"></div>
+                    </div>
+                    <p>正在連線資料庫...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="mt-8 mb-4 flex flex-col items-center">
+        <p class="text-gray-500 text-sm bg-white/40 px-3 py-1 rounded-md backdrop-blur-sm">
+            翻譯由 Gemini 2.5 Flash 提供支援
+        </p>
+    </footer>
+
+    <!-- 相機掃描彈出視窗 -->
+    <div id="camera-modal" class="fixed inset-0 bg-gray-900/90 backdrop-blur-sm hidden items-center justify-center p-4 z-50 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 border border-gray-200">
+            <h2 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+                相機掃描
+            </h2>
+            <div class="relative flex justify-center items-center bg-black rounded-xl overflow-hidden shadow-inner aspect-[3/4] md:aspect-video">
+                <video id="camera-feed" class="w-full h-full object-cover" autoplay playsinline></video>
+                <canvas id="photo-canvas"></canvas>
+            </div>
+            
+            <div id="camera-message" class="text-center text-sm text-red-500 mt-2 hidden"></div>
+
+            <div class="flex justify-between mt-6 space-x-3">
+                <button id="close-modal-btn" class="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition">取消</button>
+                <button id="capture-btn" class="flex-1 flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition disabled:opacity-50">
+                    截圖並翻譯
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ============================================================================
+        // ⚠️ 您的 Google Apps Script 網址 (已自動填入) ⚠️
+        // ============================================================================
+        const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzb72UVYuBkZTe1oGNbAPyOGcOu-Q2dL3djERmB03PmzgJ53VTGJYl7lpTswiEraf1i/exec"; 
+        // ============================================================================
+
+        // Firebase (僅用於歷史紀錄)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let db, auth, userId;
+
+        if (Object.keys(firebaseConfig).length > 0) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            onAuthStateChanged(auth, (user) => { if(user) { userId = user.uid; loadHistory(); } else { signInAnonymously(auth); } });
+        }
+
+        const sourceText = document.getElementById('source-text');
+        const targetText = document.getElementById('target-text');
+        const sourceLang = document.getElementById('source-lang');
+        const targetLang = document.getElementById('target-lang');
+        let currentImage = null; let isPdf = false; let debounceTimer;
+
+        // --- 核心翻譯邏輯 (透過 GAS 代理) ---
+        async function translate() {
+            const text = sourceText.value.trim();
+            if (!text && !currentImage) return;
+            
+            if (BACKEND_URL.includes("Google Apps Script")) {
+                targetText.value = "⚠️ 請先在程式碼中填入後端網址 (BACKEND_URL)！";
+                return;
+            }
+
+            targetText.value = "✨ 雲端翻譯中...";
+            
+            try {
+                // 使用 text/plain 避免複雜的 CORS 選項請求
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        text: text,
+                        sourceLang: sourceLang.value,
+                        targetLang: targetLang.value,
+                        imageBase64: currentImage ? currentImage.split(',')[1] : null,
+                        isPdf: isPdf
+                    })
+                });
+
+                if (!response.ok) throw new Error("Server Error");
+                const data = await response.json();
+                
+                if (data.status === "error") throw new Error(data.error);
+
+                targetText.value = data.translatedText;
+                saveHistory(text || (currentImage ? "[圖片]" : "[PDF]"), data.translatedText);
+
+            } catch (e) {
+                console.error(e);
+                targetText.value = "翻譯失敗，請檢查網路連線或後端部署狀態。\n" + e.message;
+            }
+        }
+
+        sourceText.addEventListener('input', () => {
+            if(!currentImage && sourceText.value.trim()) {
+                clearTimeout(debounceTimer);
+                // 加速：從 1000ms 縮短為 200ms
+                debounceTimer = setTimeout(translate, 200); 
+            }
+        });
+
+        // --- 歷史紀錄 (Local Storage 優先 + Firebase) ---
+        function saveHistory(src, tgt) {
+            // 存入 LocalStorage (最快，無連線需求)
+            const newRecord = {
+                sourceText: src, targetText: tgt, 
+                sourceLang: sourceLang.value, targetLang: targetLang.value, 
+                timestamp: new Date().getTime()
+            };
+            let history = JSON.parse(localStorage.getItem('translationHistory') || '[]');
+            history.unshift(newRecord);
+            if(history.length > 50) history = history.slice(0, 50);
+            localStorage.setItem('translationHistory', JSON.stringify(history));
+            renderLocalHistory();
+
+            // 若有 Firebase 則同步備份
+            if(db && userId) {
+                addDoc(collection(db, 'artifacts', appId, 'users', userId, 'translationHistory'), {
+                    ...newRecord, timestamp: serverTimestamp()
+                });
+            }
+        }
+
+        function renderLocalHistory() {
+            const history = JSON.parse(localStorage.getItem('translationHistory') || '[]');
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            
+            if (history.length === 0) {
+                list.innerHTML = '<div class="text-center text-gray-500 py-6">尚無紀錄</div>';
+                return;
+            }
+
+            history.forEach(d => {
+                const item = document.createElement('div');
+                item.className = "bg-white/70 p-3 rounded-xl border border-gray-100 hover:bg-white cursor-pointer mb-2 shadow-sm flex-shrink-0";
+                item.innerHTML = `<div class="text-xs text-blue-600 font-bold mb-1">${d.sourceLang} → ${d.targetLang}</div><div class="text-sm text-gray-800 truncate">${d.sourceText}</div><div class="text-xs text-gray-500 truncate">${d.targetText}</div>`;
+                item.onclick = () => { sourceText.value = d.sourceText; targetText.value = d.targetText; };
+                list.appendChild(item);
+            });
+        }
+
+        function loadHistory() {
+            // 優先載入本地
+            renderLocalHistory();
+            // Firebase 僅作為備份載入 (若本地無資料)
+            if((!localStorage.getItem('translationHistory')) && db && userId) {
+                onSnapshot(query(collection(db, 'artifacts', appId, 'users', userId, 'translationHistory'), limit(50)), (snap) => {
+                    const docs = []; snap.forEach(d => docs.push(d.data()));
+                    localStorage.setItem('translationHistory', JSON.stringify(docs));
+                    renderLocalHistory();
+                });
+            }
+        }
+
+        // --- 其他介面功能 ---
+        const bgUploadInput = document.getElementById('bg-upload');
+        const changeBgBtn = document.getElementById('change-bg-btn');
+
+        // 定義 loadSavedBackground 函數
+        function loadSavedBackground() {
+            const savedBg = localStorage.getItem('translatorAppBg');
+            if (savedBg) {
+                document.body.style.backgroundImage = `url(${savedBg})`;
+            }
+        }
+
+        changeBgBtn.addEventListener('click', () => bgUploadInput.click());
+        bgUploadInput.addEventListener('change', (e) => {
+            const r = new FileReader(); r.onload = ev => { document.body.style.backgroundImage = `url(${ev.target.result})`; localStorage.setItem('translatorAppBg', ev.target.result); };
+            if(e.target.files[0]) r.readAsDataURL(e.target.files[0]);
+        });
+
+        document.getElementById('swap-btn').onclick = () => { 
+            let tmp = sourceLang.value; sourceLang.value = targetLang.value; targetLang.value = tmp === 'auto' ? 'zh-Hant' : tmp; translate(); 
+        };
+        document.getElementById('copy-btn').onclick = () => { navigator.clipboard.writeText(targetText.value); alert('已複製'); };
+        document.getElementById('speak-btn').onclick = () => { 
+            const u = new SpeechSynthesisUtterance(targetText.value); 
+            u.lang = targetLang.value === 'zh-Hant' ? 'zh-TW' : targetLang.value; 
+            speechSynthesis.speak(u); 
+        };
+
+        // PDF
+        const pdfInput = document.getElementById('pdf-upload');
+        document.getElementById('pdf-btn').onclick = () => pdfInput.click();
+        pdfInput.onchange = async (e) => {
+            if(!e.target.files[0]) return;
+            isPdf = true; sourceText.value = "讀取 PDF 中...";
+            try {
+                const ab = await e.target.files[0].arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(ab).promise;
+                let txt = "";
+                for(let i=1;i<=pdf.numPages;i++) txt += (await (await pdf.getPage(i)).getTextContent()).items.map(s=>s.str).join(" ");
+                sourceText.value = txt.trim() || "PDF 無法讀取文字 (可能是圖片)";
+                if(sourceText.value && !sourceText.value.includes("無法讀取")) translate();
+            } catch(err) { sourceText.value = "PDF 讀取失敗"; }
+            pdfUploadInput.value = '';
+        };
+
+        // Camera
+        const camModal = document.getElementById('camera-modal');
+        const video = document.getElementById('camera-feed');
+        const imgPreview = document.getElementById('image-preview');
+        const imgContainer = document.getElementById('image-preview-container');
+        
+        document.getElementById('scan-btn').onclick = async () => {
+            camModal.classList.remove('hidden'); camModal.classList.add('flex');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}});
+                video.srcObject = stream;
+            } catch(e) { alert("無法開啟相機"); }
+        };
+        document.getElementById('capture-btn').onclick = () => {
+            const cvs = document.getElementById('photo-canvas');
+            cvs.width = video.videoWidth; cvs.height = video.videoHeight;
+            cvs.getContext('2d').drawImage(video, 0, 0);
+            currentImage = cvs.toDataURL('image/png');
+            video.srcObject.getTracks().forEach(t=>t.stop());
+            camModal.classList.add('hidden'); camModal.classList.remove('flex');
+            
+            imgPreview.src = currentImage;
+            imgContainer.classList.remove('hidden');
+            sourceText.value = ""; sourceText.placeholder = "已捕捉圖片，正在翻譯...";
+            translate();
+        };
+        document.getElementById('close-modal-btn').onclick = () => {
+            if(video.srcObject) video.srcObject.getTracks().forEach(t=>t.stop());
+            camModal.classList.add('hidden'); camModal.classList.remove('flex');
+        };
+        document.getElementById('clear-image-btn').onclick = () => {
+            currentImage = null; imgContainer.classList.add('hidden'); sourceText.placeholder = "輸入文字...";
+        };
+
+        // 直接呼叫初始化，移除 window.onload
+        loadSavedBackground();
+        loadHistory();
+
+    </script>
+</body>
+</html>
