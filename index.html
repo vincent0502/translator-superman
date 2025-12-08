@@ -364,13 +364,7 @@
             history.forEach(d => {
                 const item = document.createElement('div');
                 item.className = "bg-white/70 p-3 rounded-xl border border-gray-100 hover:bg-white cursor-pointer mb-2 shadow-sm flex-shrink-0";
-                
-                // 移除語言代碼顯示，只保留原文與翻譯結果
-                item.innerHTML = `
-                    <div class="text-sm text-gray-800 truncate font-medium mb-1">${d.sourceText}</div>
-                    <div class="text-xs text-gray-500 truncate">${d.targetText}</div>
-                `;
-                
+                item.innerHTML = `<div class="text-xs text-blue-600 font-bold mb-1">${d.sourceLang} → ${d.targetLang}</div><div class="text-sm text-gray-800 truncate">${d.sourceText}</div><div class="text-xs text-gray-500 truncate">${d.targetText}</div>`;
                 item.onclick = () => { sourceText.value = d.sourceText; targetText.value = d.targetText; };
                 list.appendChild(item);
             });
@@ -414,4 +408,64 @@
         document.getElementById('speak-btn').onclick = () => { 
             const u = new SpeechSynthesisUtterance(targetText.value); 
             u.lang = targetLang.value === 'zh-Hant' ? 'zh-TW' : targetLang.value; 
-            speechSynthesis.speak(u
+            speechSynthesis.speak(u); 
+        };
+
+        // PDF
+        const pdfInput = document.getElementById('pdf-upload');
+        document.getElementById('pdf-btn').onclick = () => pdfInput.click();
+        pdfInput.onchange = async (e) => {
+            if(!e.target.files[0]) return;
+            isPdf = true; sourceText.value = "讀取 PDF 中...";
+            try {
+                const ab = await e.target.files[0].arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(ab).promise;
+                let txt = "";
+                for(let i=1;i<=pdf.numPages;i++) txt += (await (await pdf.getPage(i)).getTextContent()).items.map(s=>s.str).join(" ");
+                sourceText.value = txt.trim() || "PDF 無法讀取文字 (可能是圖片)";
+                if(sourceText.value && !sourceText.value.includes("無法讀取")) translate();
+            } catch(err) { sourceText.value = "PDF 讀取失敗"; }
+            pdfUploadInput.value = '';
+        };
+
+        // Camera
+        const camModal = document.getElementById('camera-modal');
+        const video = document.getElementById('camera-feed');
+        const imgPreview = document.getElementById('image-preview');
+        const imgContainer = document.getElementById('image-preview-container');
+        
+        document.getElementById('scan-btn').onclick = async () => {
+            camModal.classList.remove('hidden'); camModal.classList.add('flex');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}});
+                video.srcObject = stream;
+            } catch(e) { alert("無法開啟相機"); }
+        };
+        document.getElementById('capture-btn').onclick = () => {
+            const cvs = document.getElementById('photo-canvas');
+            cvs.width = video.videoWidth; cvs.height = video.videoHeight;
+            cvs.getContext('2d').drawImage(video, 0, 0);
+            currentImage = cvs.toDataURL('image/png');
+            video.srcObject.getTracks().forEach(t=>t.stop());
+            camModal.classList.add('hidden'); camModal.classList.remove('flex');
+            
+            imgPreview.src = currentImage;
+            imgContainer.classList.remove('hidden');
+            sourceText.value = ""; sourceText.placeholder = "已捕捉圖片，正在翻譯...";
+            translate();
+        };
+        document.getElementById('close-modal-btn').onclick = () => {
+            if(video.srcObject) video.srcObject.getTracks().forEach(t=>t.stop());
+            camModal.classList.add('hidden'); camModal.classList.remove('flex');
+        };
+        document.getElementById('clear-image-btn').onclick = () => {
+            currentImage = null; imgContainer.classList.add('hidden'); sourceText.placeholder = "輸入文字...";
+        };
+
+        // 直接呼叫初始化，移除 window.onload
+        loadSavedBackground();
+        loadHistory();
+
+    </script>
+</body>
+</html>
